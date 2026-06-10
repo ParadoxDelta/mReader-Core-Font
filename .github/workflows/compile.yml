@@ -15,11 +15,27 @@ jobs:
     - name: Code herunterladen
       uses: actions/checkout@v4
 
-    - name: ARM64 Architektur aktivieren und Cross-Compiler installieren
+    - name: ARM64 Paketquellen korrekt hinzufügen und Cross-Compiler installieren
       run: |
+        # 1. ARM64 Architektur im System registrieren
         sudo dpkg --add-architecture arm64
+
+        # 2. Bestehende Paketquellen so anpassen, dass sie NUR für PC-Pakete (amd64) gelten
+        sudo sed -i 's/deb http/deb [arch=amd64] http/g' /etc/apt/sources.list
+        sudo sed -i 's/deb https/deb [arch=amd64] https/g' /etc/apt/sources.list
+        
+        # Falls vorhanden, auch in den neuen ubuntu.sources (Ubuntu 24.04 standard) anpassen
+        if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+          sudo sed -i 's/Architectures: amd64 arm64/Architectures: amd64/g' /etc/apt/sources.list.d/ubuntu.sources
+        fi
+
+        # 3. Die korrekten Ubuntu-Ports Server für die ARM64-Abhängigkeiten eintragen
+        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+
+        # 4. Update ausführen und Cross-Compiler + Bibliotheken installieren
         sudo apt-get update
-        # Wir installieren den ARM64 Cross-Compiler und die ARM64 Versionen der Bibliotheken
         sudo apt-get install -y build-essential gcc-aarch64-linux-gnu g++-aarch64-linux-gnu git \
           libxml2-dev:arm64 libzip-dev:arm64 libsdl1.2-dev:arm64 libsdl-ttf2.0-dev:arm64 libsdl-image1.2-dev:arm64
 
@@ -54,14 +70,12 @@ jobs:
 
     - name: Kompilieren via Makefile für ARM64
       run: |
-        # Wir zwingen das Makefile dazu, den aarch64-Compiler zu nutzen und fügen die ARM64 Include-Pfade hinzu
         make -j CXX="aarch64-linux-gnu-g++" CC="aarch64-linux-gnu-gcc" \
           CXXFLAGS="-std=c++17 -O2 -Isrc -Isrc/doc_api -Isrc/filetypes -I/usr/include/libxml2 -I/usr/include/SDL -Wall -Wextra -Wno-error -w" \
           CFLAGS="-O2 -Wno-error -w"
 
     - name: Binary strippen (Schlank machen für den Handheld)
       run: |
-        # Entfernt die Debug-Symbole, damit die Datei wieder ~800 KB statt 9 MB groß ist
         aarch64-linux-gnu-strip reader
 
     - name: Fertige App hochladen
