@@ -25,19 +25,20 @@ jobs:
         sudo rm -rf /etc/apt/sources.list.d/*
 
         # 3. Eine komplett saubere, neue sources.list schreiben
-        # PC-Pakete (amd64) kommen vom schnellen Azure-Spiegel
         echo "deb [arch=amd64] http://azure.archive.ubuntu.com/ubuntu/ noble main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
         echo "deb [arch=amd64] http://azure.archive.ubuntu.com/ubuntu/ noble-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
         echo "deb [arch=amd64] http://azure.archive.ubuntu.com/ubuntu/ noble-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
         
-        # Handheld-Pakete (arm64) kommen strikt vom offiziellen Ports-Server
         echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
         echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
         echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
 
-        # 4. Update ausführen (jetzt ohne 404-Fehler) und Abhängigkeiten installieren
+        # 4. Update ausführen
         sudo apt-get update
+        
+        # 5. Abhängigkeiten installieren (Wir zwingen die glib-binaries auf amd64, um den Konflikt zu lösen)
         sudo apt-get install -y build-essential gcc-aarch64-linux-gnu g++-aarch64-linux-gnu git \
+          libglib2.0-dev-bin:amd64 libglib2.0-dev-bin-linux:amd64 \
           libxml2-dev:arm64 libzip-dev:arm64 libsdl1.2-dev:arm64 libsdl-ttf2.0-dev:arm64 libsdl-image1.2-dev:arm64
 
     - name: Echte doc_api aus Quark-Sources holen
