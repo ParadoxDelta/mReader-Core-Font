@@ -18,7 +18,6 @@ jobs:
     - name: Linux-Abhängigkeiten installieren
       run: |
         sudo apt-get update
-        # Hier sind jetzt ALLE offiziellen Bibliotheken inklusive libsdl-image1.2-dev
         sudo apt-get install -y build-essential libxml2-dev libzip-dev libsdl1.2-dev libsdl-ttf2.0-dev libsdl-image1.2-dev git
 
     - name: Echte doc_api aus Quark-Sources holen
@@ -43,7 +42,10 @@ jobs:
         find src/filetypes/doc_api/ -type f -exec sed -i 's/experimental::optional/optional/g' {} +
         find src/filetypes/doc_api/ -type f -exec sed -i 's/<experimental\/optional>/<optional>/g' {} +
 
+        # 5. NEU: Wir flicken den fehlerhaften Entwickler-Code im settings_store Header!
+        # Wir ersetzen den Rückgabetyp "int" durch "std::optional<uint32_t>"
+        sed -i 's/int settings_get_font_size/std::optional<uint32_t> settings_get_font_size/g' src/reader/settings_store.h
+
     - name: Kompilieren via Makefile mit Suchpfad
       run: |
-        # Wir nutzen "make -j", wie vom Entwickler empfohlen, damit es auf dem Server schneller baut
         make -j CXXFLAGS="-std=c++17 -g2 -Isrc -Isrc/filetypes -I/usr/include/libxml2 -I/usr/include/SDL -pedantic-errors -Wall -Wextra"
