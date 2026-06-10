@@ -36,7 +36,7 @@ jobs:
         # 4. Update ausführen
         sudo apt-get update
         
-        # 5. Abhängigkeiten installieren (Wir zwingen die glib-binaries auf amd64, um den Konflikt zu lösen)
+        # 5. Abhängigkeiten installieren
         sudo apt-get install -y build-essential gcc-aarch64-linux-gnu g++-aarch64-linux-gnu git \
           libglib2.0-dev-bin:amd64 libglib2.0-dev-bin-linux:amd64 \
           libxml2-dev:arm64 libzip-dev:arm64 libsdl1.2-dev:arm64 libsdl-ttf2.0-dev:arm64 libsdl-image1.2-dev:arm64
@@ -76,9 +76,26 @@ jobs:
           CXXFLAGS="-std=c++17 -O2 -Isrc -Isrc/doc_api -Isrc/filetypes -I/usr/include/libxml2 -I/usr/include/SDL -Wall -Wextra -Wno-error -w" \
           CFLAGS="-O2 -Wno-error -w"
 
-    - name: Binary strippen (Schlank machen für den Handheld)
+    - name: Binary finden, strippen und vorbereiten
       run: |
-        aarch64-linux-gnu-strip reader
+        # Wir suchen nach ausführbaren Dateien, die das Makefile ausgespuckt hat
+        # (Oft heißen sie 'reader' oder 'mreader')
+        FOUND_BIN=$(find . -maxdepth 3 -type f -executable ! -name "*.sh" ! -path "*/.*" | head -n 1)
+        
+        if [ -z "$FOUND_BIN" ]; then
+          echo "FEHLER: Es wurde keine ausführbare Datei vom Makefile gebaut!"
+          echo "Inhalt des Verzeichnisses:"
+          ls -R
+          exit 1
+        fi
+        
+        echo "Erfolgreich gebaute Datei gefunden: $FOUND_BIN"
+        
+        # Datei schlank machen für den Handheld
+        aarch64-linux-gnu-strip "$FOUND_BIN"
+        
+        # Sicherstellen, dass sie im Hauptverzeichnis exakt 'reader' heißt, damit dein PortMaster-Skript sie findet
+        cp "$FOUND_BIN" ./reader
 
     - name: Fertige App hochladen
       uses: actions/upload-artifact@v4
