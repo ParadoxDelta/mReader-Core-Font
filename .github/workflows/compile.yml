@@ -26,8 +26,13 @@ jobs:
         rm -rf src/filetypes/doc_api
         cp -r temp_quark/pixel-reader/src/doc_api src/filetypes/doc_api
 
-    - name: Kompilieren mit API-Kompatibilitäts-Flags
+    - name: Kompilieren mit sauberer Namespace-Brücke
       run: |
-        # -include cstdint fügt die fehlenden uint64_t Typen hinzu
-        # -D... weicht das veraltete experimental::filesystem auf das moderne std::filesystem auf
-        make CXXFLAGS="-std=c++17 -g2 -Isrc -Isrc/filetypes -I/usr/include/libxml2 -pedantic-errors -Wall -Wextra -include cstdint -Dexperimental= -D_GLIBCXX_EXPERIMENTAL_FILESYSTEM=1"
+        # Wir erstellen on-the-fly eine kleine Header-Datei, die die alten Typen auf moderne Typen umleitet
+        echo '#include <cstdint>' > bridge.h
+        echo '#include <filesystem>' >> bridge.h
+        echo '#include <optional>' >> bridge.h
+        echo 'namespace std { namespace experimental { namespace filesystem = std::filesystem; using std::optional; } }' >> bridge.h
+
+        # Wir binden diese Brücke über "-include bridge.h" global ein
+        make CXXFLAGS="-std=c++17 -g2 -Isrc -Isrc/filetypes -I/usr/include/libxml2 -pedantic-errors -Wall -Wextra -include bridge.h"
