@@ -26,13 +26,20 @@ jobs:
         rm -rf src/filetypes/doc_api
         cp -r temp_quark/pixel-reader/src/doc_api src/filetypes/doc_api
 
-    - name: Kompilieren mit sauberer Namespace-Brücke
+    - name: Code-Kompatibilität patchen (Sed-Fix)
       run: |
-        # Wir erstellen on-the-fly eine kleine Header-Datei, die die alten Typen auf moderne Typen umleitet
-        echo '#include <cstdint>' > bridge.h
-        echo '#include <filesystem>' >> bridge.h
-        echo '#include <optional>' >> bridge.h
-        echo 'namespace std { namespace experimental { namespace filesystem = std::filesystem; using std::optional; } }' >> bridge.h
+        # 1. Wir fügen das fehlende <cstdint> in die doc_addr.h ein (behebt uint64_t Fehler)
+        sed -i '1i#include <cstdint>' src/filetypes/doc_api/doc_addr.h
+        
+        # 2. Wir ersetzen das veraltete experimental::filesystem durch das moderne filesystem
+        find src/filetypes/doc_api/ -type f -exec sed -i 's/experimental::filesystem/filesystem/g' {} +
+        find src/filetypes/doc_api/ -type f -exec sed -i 's/<experimental\/filesystem>/<filesystem>/g' {} +
 
-        # Wir binden diese Brücke über "-include bridge.h" global ein
-        make CXXFLAGS="-std=c++17 -g2 -Isrc -Isrc/filetypes -I/usr/include/libxml2 -pedantic-errors -Wall -Wextra -include bridge.h"
+        # 3. Wir biegen das alte experimental::optional auf das normale std::optional um
+        find src/filetypes/doc_api/ -type f -exec sed -i 's/experimental::optional/optional/g' {} +
+        find src/filetypes/doc_api/ -type f -exec sed -i 's/<experimental\/optional>/<optional>/g' {} +
+
+    - name: Kompilieren via Makefile
+      run: |
+        # Jetzt rufen wir das ganz normale Makefile ohne künstliche Flags auf
+        make
