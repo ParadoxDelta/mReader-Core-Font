@@ -18,8 +18,8 @@ jobs:
     - name: Linux-Abhängigkeiten installieren
       run: |
         sudo apt-get update
-        # Wir fügen die originalen SDL 1.2 Grafik- und Schrifttypen-Bibliotheken hinzu
-        sudo apt-get install -y build-essential libxml2-dev libzip-dev libsdl1.2-dev libsdl-ttf2.0-dev git
+        # Hier sind jetzt ALLE offiziellen Bibliotheken inklusive libsdl-image1.2-dev
+        sudo apt-get install -y build-essential libxml2-dev libzip-dev libsdl1.2-dev libsdl-ttf2.0-dev libsdl-image1.2-dev git
 
     - name: Echte doc_api aus Quark-Sources holen
       run: |
@@ -45,4 +45,5 @@ jobs:
 
     - name: Kompilieren via Makefile mit Suchpfad
       run: |
-        make CXXFLAGS="-std=c++17 -g2 -Isrc -Isrc/filetypes -I/usr/include/libxml2 -I/usr/include/SDL -pedantic-errors -Wall -Wextra"
+        # Wir nutzen "make -j", wie vom Entwickler empfohlen, damit es auf dem Server schneller baut
+        make -j CXXFLAGS="-std=c++17 -g2 -Isrc -Isrc/filetypes -I/usr/include/libxml2 -I/usr/include/SDL -pedantic-errors -Wall -Wextra"
