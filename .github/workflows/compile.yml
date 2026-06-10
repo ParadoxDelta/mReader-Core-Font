@@ -28,29 +28,30 @@ jobs:
 
     - name: Code-Kompatibilität patchen (Präzise Text-Ersetzungen)
       run: |
-        # 1. Wir fügen das fehlende <cstdint> in die doc_addr.h ein
+        # 1. Wir fügen fehlende System-Includes (<cstdint>) in die betroffenen Dateien ein
         sed -i '1i#include <cstdint>' src/filetypes/doc_api/doc_addr.h
-        
-        # 2. Wir fügen das fehlende <cstdint> in die xhtml_string_util.cpp ein
         sed -i '1i#include <cstdint>' src/filetypes/epub/xhtml_string_util.cpp
+        sed -i '1i#include <cstdint>' src/reader/text_wrap.cpp
         
-        # 3. Wir ersetzen das veraltete experimental::filesystem durch das moderne filesystem
+        # 2. Wir ersetzen das veraltete experimental::filesystem durch das moderne filesystem
         find src/filetypes/doc_api/ -type f -exec sed -i 's/experimental::filesystem/filesystem/g' {} +
         find src/filetypes/doc_api/ -type f -exec sed -i 's/<experimental\/filesystem>/<filesystem>/g' {} +
 
-        # 4. Wir ersetzen experimental::optional NUR im geklonten doc_api-Ordner, 
-        # damit die Standardbibliothek und das restliche mReader-Projekt intakt bleiben!
+        # 3. Wir ersetzen experimental::optional NUR im geklonten doc_api-Ordner
         find src/filetypes/doc_api/ -type f -exec sed -i 's/experimental::optional/optional/g' {} +
         find src/filetypes/doc_api/ -type f -exec sed -i 's/<experimental\/optional>/<optional>/g' {} +
 
+        # 4. Wir korrigieren den veralteten Rückgabetyp im Header des Entwicklers (int -> std::optional)
+        # Wir inkludieren <optional> im Header und passen die Deklaration an
+        sed -i '1i#include <optional>\n#include <cstdint>' src/reader/settings_store.h
+        sed -i 's/int settings_get_font_size/std::optional<uint32_t> settings_get_font_size/g' src/reader/settings_store.h
+
         # 5. Wir fixen die Smart-Pointer-Initialisierung für zoomSurface in token_line_scroller.cpp
-        # C++17 verlangt hier runde Klammern statt geschweifter Klammern
         sed -i 's/surface_unique_ptr\s*{\s*zoomSurface/surface_unique_ptr(zoomSurface/g' src/reader/views/token_view/token_line_scroller.cpp
         sed -i '/surface_unique_ptr(zoomSurface/s/}/)/g' src/reader/views/token_view/token_line_scroller.cpp
 
     - name: Kompilieren via Makefile mit Suchpfad
       run: |
-        # WICHTIG: Das gefährliche Makro -Dexperimental=std ist ENTFERNT!
         make -j CXXFLAGS="-std=c++17 -g2 -Isrc -Isrc/filetypes -I/usr/include/libxml2 -I/usr/include/SDL -Wall -Wextra"
 
     - name: Fertige App hochladen (Download bereitstellen)
