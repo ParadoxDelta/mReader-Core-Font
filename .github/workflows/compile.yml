@@ -28,11 +28,13 @@ jobs:
 
     - name: Code-Kompatibilität patchen (Präzise Text-Ersetzungen)
       run: |
-        # 1. Wir fügen fehlende System-Includes (<cstdint>) in die betroffenen Dateien ein
+        # 1. Wir fügen fehlende System-Includes (<cstdint>) in alle betroffenen Dateien ein
         sed -i '1i#include <cstdint>' src/filetypes/doc_api/doc_addr.h
         sed -i '1i#include <cstdint>' src/filetypes/epub/xhtml_string_util.cpp
         sed -i '1i#include <cstdint>' src/reader/text_wrap.cpp
         sed -i '1i#include <cstdint>' src/util/string_serialization.cpp
+        sed -i '1i#include <cstdint>' src/util/str_utils.cpp
+        sed -i '1i#include <cstdint>' src/reader/shoulder_keymap.cpp
         
         # 2. Wir ersetzen das veraltete experimental::filesystem durch das moderne filesystem
         find src/filetypes/doc_api/ -type f -exec sed -i 's/experimental::filesystem/filesystem/g' {} +
