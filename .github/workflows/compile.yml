@@ -36,11 +36,11 @@ jobs:
         # 4. Update ausführen
         sudo apt-get update
         
-        # 5. Abhängigkeiten installieren (Jetzt inklusive libtiff-dev)
+        # 5. Abhängigkeiten installieren
         sudo apt-get install -y build-essential gcc-aarch64-linux-gnu g++-aarch64-linux-gnu git \
           libglib2.0-dev-bin:amd64 libglib2.0-dev-bin-linux:amd64 \
           libxml2-dev:arm64 libzip-dev:arm64 libsdl1.2-dev:arm64 libsdl-ttf2.0-dev:arm64 libsdl-image1.2-dev:arm64 \
-          libssl-dev:arm64 libtiff-dev:arm64
+          libssl-dev:arm64 libwebp-dev:arm64 libtiff-dev:arm64
 
     - name: Echte doc_api aus Quark-Sources holen
       run: |
@@ -71,19 +71,25 @@ jobs:
         sed -i 's/surface_unique_ptr\s*{\s*zoomSurface/surface_unique_ptr(zoomSurface/g' src/reader/views/token_view/token_line_scroller.cpp
         sed -i '/surface_unique_ptr(zoomSurface/s/}/)/g' src/reader/views/token_view/token_line_scroller.cpp
 
-    - name: Kompilieren via Makefile für ARM64
+    - name: Kompilieren via Makefile für ARM64 (Mit statischen Flags!)
       run: |
+        # Wir überschreiben die LDFLAGS so, dass libzip und libxml2 direkt statisch reingezogen werden.
+        # Gleichzeitig binden wir alle für SDL_image relevanten Ubuntu-Bibliotheken sicherheitshalber ein.
         make -j CXX="aarch64-linux-gnu-g++" CC="aarch64-linux-gnu-gcc" \
           CXXFLAGS="-std=c++17 -O2 -Isrc -Isrc/doc_api -Isrc/filetypes -I/usr/include/libxml2 -I/usr/include/SDL -Wall -Wextra -Wno-error -w" \
-          CFLAGS="-O2 -Wno-error -w"
+          CFLAGS="-O2 -Wno-error -w" \
+          LDFLAGS="-lSDL -lSDL_ttf -lSDL_image -lstdc++fs -Wl,-Bstatic -lzip -lxml2 -lssl -lcrypto -lz -llzma -Wl,-Bdynamic"
 
     - name: Binary finden, strippen und Bibliotheken sammeln
       run: |
-        # 1. Ausführbare Datei suchen
-        FOUND_BIN=$(find . -maxdepth 3 -type f -executable ! -name "*.sh" ! -path "*/.*" | head -n 1)
+        # 1. Ausführbare Datei suchen (wird laut Makefile in build/reader abgelegt)
+        FOUND_BIN=$(find build/ -type f -executable ! -name "*.sh" ! -path "*/.*" | head -n 1)
+        if [ -z "$FOUND_BIN" ]; then
+          FOUND_BIN=$(find . -maxdepth 3 -type f -executable ! -name "*.sh" ! -path "*/.*" | head -n 1)
+        fi
         
         if [ -z "$FOUND_BIN" ]; then
-          echo "FEHLER: Es wurde keine ausführbare Datei gebaut!"
+          echo "FEHLER: Keine ausführbare Datei gefunden!"
           exit 1
         fi
         
@@ -94,12 +100,8 @@ jobs:
         aarch64-linux-gnu-strip "$FOUND_BIN"
         cp "$FOUND_BIN" dist/reader
         
-        # 4. Bibliotheken gezielt sammeln
-        # (Entfernt: libstdc++.so.6, da dies gptokeyb zum Absturz bringt!)
-        cp -L /usr/lib/aarch64-linux-gnu/libzip.so.4 dist/libs/ 2>/dev/null || true
-        cp -L /usr/lib/aarch64-linux-gnu/libxml2.so.2 dist/libs/ 2>/dev/null || true
-        cp -L /usr/lib/aarch64-linux-gnu/libcrypto.so.3 dist/libs/ 2>/dev/null || true
-        cp -L /usr/lib/aarch64-linux-gnu/libssl.so.3 dist/libs/ 2>/dev/null || true
+        # 4. Nur die reinen SDL-Abhängigkeiten exportieren. 
+        # (Weil libzip, libxml2, libcrypto etc. jetzt FEST in der 'reader'-Datei verschweißt sind!)
         cp -L /usr/lib/aarch64-linux-gnu/libSDL-1.2.so.0 dist/libs/ 2>/dev/null || true
         cp -L /usr/lib/aarch64-linux-gnu/libSDL_ttf-2.0.so.0 dist/libs/ 2>/dev/null || true
         cp -L /usr/lib/aarch64-linux-gnu/libSDL_image-1.2.so.0 dist/libs/ 2>/dev/null || true
@@ -107,8 +109,17 @@ jobs:
         cp -L /usr/lib/aarch64-linux-gnu/libpng16.so.16 dist/libs/ 2>/dev/null || true
         cp -L /usr/lib/aarch64-linux-gnu/libjpeg.so.8 dist/libs/ 2>/dev/null || true
         cp -L /usr/lib/aarch64-linux-gnu/libtiff.so.6 dist/libs/ 2>/dev/null || true
+        cp -L /usr/lib/aarch64-linux-gnu/libwebp.so.7 dist/libs/ 2>/dev/null || true
+        
+        # Moderne Ubuntu-Zusatzabhängigkeiten für Bilder
+        cp -L /usr/lib/aarch64-linux-gnu/libjxl.so* dist/libs/ 2>/dev/null || true
+        cp -L /usr/lib/aarch64-linux-gnu/libsharpyuv.so* dist/libs/ 2>/dev/null || true
+        
+        # SEHR WICHTIG: Keine System-C++ Dateien exportieren, um gptokeyb nicht zu crashen
+        rm -f dist/libs/libstdc++.so*
+        rm -f dist/libs/libc.so*
 
-        echo "Folgende Bibliotheken wurden erfolgreich exportiert:"
+        echo "Folgende Bibliotheken sind im Paket enthalten:"
         ls -l dist/libs/
 
     - name: Fertige App und Libs hochladen
