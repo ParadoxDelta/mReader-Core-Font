@@ -26,7 +26,7 @@ jobs:
         rm -rf src/filetypes/doc_api
         cp -r temp_quark/pixel-reader/src/doc_api src/filetypes/doc_api
 
-    - name: Code-Kompatibilität patchen (Nur Filesystem & cstdint)
+    - name: Code-Kompatibilität patchen (Letzter C++17-Schliff)
       run: |
         # 1. Wir fügen das fehlende <cstdint> in die doc_addr.h ein
         sed -i '1i#include <cstdint>' src/filetypes/doc_api/doc_addr.h
@@ -34,14 +34,17 @@ jobs:
         # 2. Wir fügen das fehlende <cstdint> in die xhtml_string_util.cpp ein
         sed -i '1i#include <cstdint>' src/filetypes/epub/xhtml_string_util.cpp
         
-        # 3. Wir ersetzen NUR das veraltete experimental::filesystem durch das moderne filesystem
+        # 3. Wir ersetzen das veraltete experimental::filesystem durch das moderne filesystem
         find src/filetypes/doc_api/ -type f -exec sed -i 's/experimental::filesystem/filesystem/g' {} +
         find src/filetypes/doc_api/ -type f -exec sed -i 's/<experimental\/filesystem>/<filesystem>/g' {} +
 
+        # 4. NEU: Wir fixen die Smart-Pointer-Initialisierung in token_line_scroller.cpp
+        # Wir ändern geschweifte Klammern zu runden Klammern bei der surface_unique_ptr Erstellung
+        sed -i 's/surface_unique_ptr\s*{\s*zoomSurface/surface_unique_ptr(zoomSurface/g' src/reader/views/token_view/token_line_scroller.cpp
+        sed -i '/surface_unique_ptr(zoomSurface/s/}/)/g' src/reader/views/token_view/token_line_scroller.cpp
+
     - name: Kompilieren via Makefile mit Suchpfad
       run: |
-        # Wir entfernen "-pedantic-errors", damit Warnungen über ungenutzte Funktionen ignoriert werden.
-        # Wir fügen "-Dexperimental=std" hinzu, um experimental::optional sauber auf std::optional umzubiegen!
         make -j CXXFLAGS="-std=c++17 -g2 -Isrc -Isrc/filetypes -I/usr/include/libxml2 -I/usr/include/SDL -Wall -Wextra -Dexperimental=std"
 
     - name: Fertige App hochladen (Download bereitstellen)
