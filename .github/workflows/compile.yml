@@ -94,24 +94,24 @@ jobs:
         aarch64-linux-gnu-strip "$FOUND_BIN"
         cp "$FOUND_BIN" dist/reader
         
-        # 4. Radikaler Rundumschlag: Alle potenziell kritischen Bibliotheken einsammeln
-        # Wir kopieren die direkten Abhängigkeiten als echte Dateien (-L folgt Symlinks)
-        
-        # Basis-Abhängigkeiten (bereits bekannt)
+        # 4. Bibliotheken sammeln (Jetzt mit korrekt gesetztem Zielverzeichnis!)
         cp -L /usr/lib/aarch64-linux-gnu/libzip.so.4 dist/libs/ 2>/dev/null || true
         cp -L /usr/lib/aarch64-linux-gnu/libxml2.so.2 dist/libs/ 2>/dev/null || true
         cp -L /usr/lib/aarch64-linux-gnu/libcrypto.so.3 dist/libs/ 2>/dev/null || true
         cp -L /usr/lib/aarch64-linux-gnu/libssl.so.3 dist/libs/ 2>/dev/null || true
-        
-        # C++ Laufzeitumgebungen (falls das Handheld-OS zu alt für GCC 13/14-Code ist)
         cp -L /usr/lib/aarch64-linux-gnu/libstdc++.so.6 dist/libs/ 2>/dev/null || true
-        
-        # SDL & Erweiterungen (Die schaden im libs-Ordner nie, falls das OS ältere Versionen nutzt)
         cp -L /usr/lib/aarch64-linux-gnu/libSDL-1.2.so.0 dist/libs/ 2>/dev/null || true
         cp -L /usr/lib/aarch64-linux-gnu/libSDL_ttf-2.0.so.0 dist/libs/ 2>/dev/null || true
         cp -L /usr/lib/aarch64-linux-gnu/libSDL_image-1.2.so.0 dist/libs/ 2>/dev/null || true
-        
-        # Grafik- & Schrift-Engine Backends (Wichtig für SDL_image und SDL_ttf)
         cp -L /usr/lib/aarch64-linux-gnu/libfreetype.so.6 dist/libs/ 2>/dev/null || true
         cp -L /usr/lib/aarch64-linux-gnu/libpng16.so.16 dist/libs/ 2>/dev/null || true
-        cp -L /usr/lib/aarch64-linux-gnu
+        cp -L /usr/lib/aarch64-linux-gnu/libjpeg.so.8 dist/libs/ 2>/dev/null || true
+
+        echo "Folgende Bibliotheken wurden erfolgreich exportiert:"
+        ls -l dist/libs/
+
+    - name: Fertige App und Libs hochladen
+      uses: actions/upload-artifact@v4
+      with:
+        name: mreader-portmaster-package
+        path: dist/
