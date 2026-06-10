@@ -1,4 +1,4 @@
-name: Handheld Build
+name: Handheld Build (ARM64 Cross-Compile)
 
 on:
   push:
@@ -15,26 +15,24 @@ jobs:
     - name: Code herunterladen
       uses: actions/checkout@v4
 
-    - name: Linux-Abhängigkeiten installieren
+    - name: ARM64 Architektur aktivieren und Cross-Compiler installieren
       run: |
+        sudo dpkg --add-architecture arm64
         sudo apt-get update
-        sudo apt-get install -y build-essential libxml2-dev libzip-dev libsdl1.2-dev libsdl-ttf2.0-dev libsdl-image1.2-dev git
+        # Wir installieren den ARM64 Cross-Compiler und die ARM64 Versionen der Bibliotheken
+        sudo apt-get install -y build-essential gcc-aarch64-linux-gnu g++-aarch64-linux-gnu git \
+          libxml2-dev:arm64 libzip-dev:arm64 libsdl1.2-dev:arm64 libsdl-ttf2.0-dev:arm64 libsdl-image1.2-dev:arm64
 
     - name: Echte doc_api aus Quark-Sources holen
       run: |
         git clone https://github.com/cobaltgit/Quark-Sources.git temp_quark
-        
-        # Wir säubern die Zielordner vorsorglich
         rm -rf src/filetypes/doc_api src/doc_api
         mkdir -p src/filetypes/doc_api src/doc_api
-        
-        # WICHTIG: Wir kopieren die API an BEIDE Orte, um dem fehlerhaften Makefile entgegenzukommen!
         cp -r temp_quark/pixel-reader/src/doc_api/* src/filetypes/doc_api/
         cp -r temp_quark/pixel-reader/src/doc_api/* src/doc_api/
 
     - name: Code-Kompatibilität patchen (Präzise Text-Ersetzungen)
       run: |
-        # 1. Wir fügen fehlende System-Includes (<cstdint>) in alle betroffenen Dateien ein
         sed -i '1i#include <cstdint>' src/filetypes/doc_api/doc_addr.h
         sed -i '1i#include <cstdint>' src/doc_api/doc_addr.h
         sed -i '1i#include <cstdint>' src/filetypes/epub/xhtml_string_util.cpp
@@ -43,35 +41,31 @@ jobs:
         sed -i '1i#include <cstdint>' src/util/str_utils.cpp
         sed -i '1i#include <cstdint>' src/reader/shoulder_keymap.cpp
         
-        # 2. Wir ersetzen das veraltete experimental::filesystem durch das moderne filesystem (in beiden API-Ordnern)
         find src/filetypes/doc_api/ src/doc_api/ -type f -exec sed -i 's/experimental::filesystem/filesystem/g' {} +
         find src/filetypes/doc_api/ src/doc_api/ -type f -exec sed -i 's/<experimental\/filesystem>/<filesystem>/g' {} +
-
-        # 3. Wir ersetzen experimental::optional NUR in den geklonten doc_api-Ordnern
         find src/filetypes/doc_api/ src/doc_api/ -type f -exec sed -i 's/experimental::optional/optional/g' {} +
         find src/filetypes/doc_api/ src/doc_api/ -type f -exec sed -i 's/<experimental\/optional>/<optional>/g' {} +
 
-        # 4. Wir korrigieren den veralteten Rückgabetyp im Header des Entwicklers (int -> std::optional)
         sed -i '1i#include <optional>\n#include <cstdint>' src/reader/settings_store.h
         sed -i 's/int settings_get_font_size/std::optional<uint32_t> settings_get_font_size/g' src/reader/settings_store.h
 
-        # 5. Wir fixen die Smart-Pointer-Initialisierung für zoomSurface in token_line_scroller.cpp
         sed -i 's/surface_unique_ptr\s*{\s*zoomSurface/surface_unique_ptr(zoomSurface/g' src/reader/views/token_view/token_line_scroller.cpp
         sed -i '/surface_unique_ptr(zoomSurface/s/}/)/g' src/reader/views/token_view/token_line_scroller.cpp
 
-    - name: Kompilieren via Makefile mit Suchpfad
+    - name: Kompilieren via Makefile für ARM64
       run: |
-        # Wir fügen -Isrc/doc_api als Suchpfad hinzu, damit der Compiler die Header findet, egal wie das Include aussieht!
-        make -j CXXFLAGS="-std=c++17 -g2 -Isrc -Isrc/doc_api -Isrc/filetypes -I/usr/include/libxml2 -I/usr/include/SDL -Wall -Wextra -Wno-error -w" CFLAGS="-Wno-error -w"
+        # Wir zwingen das Makefile dazu, den aarch64-Compiler zu nutzen und fügen die ARM64 Include-Pfade hinzu
+        make -j CXX="aarch64-linux-gnu-g++" CC="aarch64-linux-gnu-gcc" \
+          CXXFLAGS="-std=c++17 -O2 -Isrc -Isrc/doc_api -Isrc/filetypes -I/usr/include/libxml2 -I/usr/include/SDL -Wall -Wextra -Wno-error -w" \
+          CFLAGS="-O2 -Wno-error -w"
 
-    - name: Fertige App hochladen (Download bereitstellen)
+    - name: Binary strippen (Schlank machen für den Handheld)
+      run: |
+        # Entfernt die Debug-Symbole, damit die Datei wieder ~800 KB statt 9 MB groß ist
+        aarch64-linux-gnu-strip reader
+
+    - name: Fertige App hochladen
       uses: actions/upload-artifact@v4
       with:
-        name: mreader-binar-datei
-        path: |
-          build/mreader
-          mreader
-          build/reader
-          reader
-          build/
-        if-no-files-found: warn
+        name: mreader-arm64-binary
+        path: reader
