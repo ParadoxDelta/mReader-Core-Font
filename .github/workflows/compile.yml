@@ -23,26 +23,33 @@ jobs:
     - name: Echte doc_api aus Quark-Sources holen
       run: |
         git clone https://github.com/cobaltgit/Quark-Sources.git temp_quark
-        rm -rf src/filetypes/doc_api
-        cp -r temp_quark/pixel-reader/src/doc_api src/filetypes/doc_api
+        
+        # Wir säubern die Zielordner vorsorglich
+        rm -rf src/filetypes/doc_api src/doc_api
+        mkdir -p src/filetypes/doc_api src/doc_api
+        
+        # WICHTIG: Wir kopieren die API an BEIDE Orte, um dem fehlerhaften Makefile entgegenzukommen!
+        cp -r temp_quark/pixel-reader/src/doc_api/* src/filetypes/doc_api/
+        cp -r temp_quark/pixel-reader/src/doc_api/* src/doc_api/
 
     - name: Code-Kompatibilität patchen (Präzise Text-Ersetzungen)
       run: |
         # 1. Wir fügen fehlende System-Includes (<cstdint>) in alle betroffenen Dateien ein
         sed -i '1i#include <cstdint>' src/filetypes/doc_api/doc_addr.h
+        sed -i '1i#include <cstdint>' src/doc_api/doc_addr.h
         sed -i '1i#include <cstdint>' src/filetypes/epub/xhtml_string_util.cpp
         sed -i '1i#include <cstdint>' src/reader/text_wrap.cpp
         sed -i '1i#include <cstdint>' src/util/string_serialization.cpp
         sed -i '1i#include <cstdint>' src/util/str_utils.cpp
         sed -i '1i#include <cstdint>' src/reader/shoulder_keymap.cpp
         
-        # 2. Wir ersetzen das veraltete experimental::filesystem durch das moderne filesystem
-        find src/filetypes/doc_api/ -type f -exec sed -i 's/experimental::filesystem/filesystem/g' {} +
-        find src/filetypes/doc_api/ -type f -exec sed -i 's/<experimental\/filesystem>/<filesystem>/g' {} +
+        # 2. Wir ersetzen das veraltete experimental::filesystem durch das moderne filesystem (in beiden API-Ordnern)
+        find src/filetypes/doc_api/ src/doc_api/ -type f -exec sed -i 's/experimental::filesystem/filesystem/g' {} +
+        find src/filetypes/doc_api/ src/doc_api/ -type f -exec sed -i 's/<experimental\/filesystem>/<filesystem>/g' {} +
 
-        # 3. Wir ersetzen experimental::optional NUR im geklonten doc_api-Ordner
-        find src/filetypes/doc_api/ -type f -exec sed -i 's/experimental::optional/optional/g' {} +
-        find src/filetypes/doc_api/ -type f -exec sed -i 's/<experimental\/optional>/<optional>/g' {} +
+        # 3. Wir ersetzen experimental::optional NUR in den geklonten doc_api-Ordnern
+        find src/filetypes/doc_api/ src/doc_api/ -type f -exec sed -i 's/experimental::optional/optional/g' {} +
+        find src/filetypes/doc_api/ src/doc_api/ -type f -exec sed -i 's/<experimental\/optional>/<optional>/g' {} +
 
         # 4. Wir korrigieren den veralteten Rückgabetyp im Header des Entwicklers (int -> std::optional)
         sed -i '1i#include <optional>\n#include <cstdint>' src/reader/settings_store.h
@@ -54,8 +61,8 @@ jobs:
 
     - name: Kompilieren via Makefile mit Suchpfad
       run: |
-        # NEU: Wir fügen "-Wno-error" und "-w" hinzu, damit alte Code-Teile in src/extern den Build nicht durch Warnungen blockieren!
-        make -j CXXFLAGS="-std=c++17 -g2 -Isrc -Isrc/filetypes -I/usr/include/libxml2 -I/usr/include/SDL -Wall -Wextra -Wno-error -w" CFLAGS="-Wno-error -w"
+        # Wir fügen -Isrc/doc_api als Suchpfad hinzu, damit der Compiler die Header findet, egal wie das Include aussieht!
+        make -j CXXFLAGS="-std=c++17 -g2 -Isrc -Isrc/doc_api -Isrc/filetypes -I/usr/include/libxml2 -I/usr/include/SDL -Wall -Wextra -Wno-error -w" CFLAGS="-Wno-error -w"
 
     - name: Fertige App hochladen (Download bereitstellen)
       uses: actions/upload-artifact@v4
