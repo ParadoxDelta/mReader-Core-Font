@@ -22,16 +22,11 @@ jobs:
 
     - name: Echte doc_api aus Quark-Sources holen
       run: |
-        # Wir klonen das Quark-Repository in einen temporären Ordner
         git clone https://github.com/cobaltgit/Quark-Sources.git temp_quark
-        
-        # Wir löschen den kaputten/leeren Ordner in deinem Projekt
         rm -rf src/filetypes/doc_api
-        rm -rf src/doc_api
-        
-        # Wir kopieren den echten, vollständigen doc_api-Ordner dorthin, wo dein Makefile ihn sucht
         cp -r temp_quark/pixel-reader/src/doc_api src/filetypes/doc_api
 
-    - name: Kompilieren via Makefile
+    - name: Kompilieren via Makefile mit angepasstem Suchpfad
       run: |
-        make
+        # Wir übergeben CXXFLAGS direkt an make, um -Isrc/filetypes hinzuzufügen
+        make CXXFLAGS="-std=c++17 -g2 -Isrc -Isrc/filetypes -I/usr/include/libxml2 -pedantic-errors -Wall -Wextra"
