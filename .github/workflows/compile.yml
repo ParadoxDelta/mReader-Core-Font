@@ -26,7 +26,7 @@ jobs:
         rm -rf src/filetypes/doc_api
         cp -r temp_quark/pixel-reader/src/doc_api src/filetypes/doc_api
 
-    - name: Code-Kompatibilität patchen (Letzter C++17-Schliff)
+    - name: Code-Kompatibilität patchen (Präzise Text-Ersetzungen)
       run: |
         # 1. Wir fügen das fehlende <cstdint> in die doc_addr.h ein
         sed -i '1i#include <cstdint>' src/filetypes/doc_api/doc_addr.h
@@ -38,14 +38,20 @@ jobs:
         find src/filetypes/doc_api/ -type f -exec sed -i 's/experimental::filesystem/filesystem/g' {} +
         find src/filetypes/doc_api/ -type f -exec sed -i 's/<experimental\/filesystem>/<filesystem>/g' {} +
 
-        # 4. NEU: Wir fixen die Smart-Pointer-Initialisierung in token_line_scroller.cpp
-        # Wir ändern geschweifte Klammern zu runden Klammern bei der surface_unique_ptr Erstellung
+        # 4. Wir ersetzen experimental::optional NUR im geklonten doc_api-Ordner, 
+        # damit die Standardbibliothek und das restliche mReader-Projekt intakt bleiben!
+        find src/filetypes/doc_api/ -type f -exec sed -i 's/experimental::optional/optional/g' {} +
+        find src/filetypes/doc_api/ -type f -exec sed -i 's/<experimental\/optional>/<optional>/g' {} +
+
+        # 5. Wir fixen die Smart-Pointer-Initialisierung für zoomSurface in token_line_scroller.cpp
+        # C++17 verlangt hier runde Klammern statt geschweifter Klammern
         sed -i 's/surface_unique_ptr\s*{\s*zoomSurface/surface_unique_ptr(zoomSurface/g' src/reader/views/token_view/token_line_scroller.cpp
         sed -i '/surface_unique_ptr(zoomSurface/s/}/)/g' src/reader/views/token_view/token_line_scroller.cpp
 
     - name: Kompilieren via Makefile mit Suchpfad
       run: |
-        make -j CXXFLAGS="-std=c++17 -g2 -Isrc -Isrc/filetypes -I/usr/include/libxml2 -I/usr/include/SDL -Wall -Wextra -Dexperimental=std"
+        # WICHTIG: Das gefährliche Makro -Dexperimental=std ist ENTFERNT!
+        make -j CXXFLAGS="-std=c++17 -g2 -Isrc -Isrc/filetypes -I/usr/include/libxml2 -I/usr/include/SDL -Wall -Wextra"
 
     - name: Fertige App hochladen (Download bereitstellen)
       uses: actions/upload-artifact@v4
