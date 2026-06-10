@@ -28,7 +28,7 @@ jobs:
 
     - name: Code-Kompatibilität patchen (Sed-Fix)
       run: |
-        # 1. Wir fügen das fehlende <cstdint> in die doc_addr.h ein (behebt uint64_t Fehler)
+        # 1. Wir fügen das fehlende <cstdint> in die doc_addr.h ein
         sed -i '1i#include <cstdint>' src/filetypes/doc_api/doc_addr.h
         
         # 2. Wir ersetzen das veraltete experimental::filesystem durch das moderne filesystem
@@ -39,7 +39,7 @@ jobs:
         find src/filetypes/doc_api/ -type f -exec sed -i 's/experimental::optional/optional/g' {} +
         find src/filetypes/doc_api/ -type f -exec sed -i 's/<experimental\/optional>/<optional>/g' {} +
 
-    - name: Kompilieren via Makefile
+    - name: Kompilieren via Makefile mit Suchpfad
       run: |
-        # Jetzt rufen wir das ganz normale Makefile ohne künstliche Flags auf
-        make
+        # WICHTIG: Wir übergeben CXXFLAGS, damit der Compiler den Ordner src/filetypes findet!
+        make CXXFLAGS="-std=c++17 -g2 -Isrc -Isrc/filetypes -I/usr/include/libxml2 -pedantic-errors -Wall -Wextra"
