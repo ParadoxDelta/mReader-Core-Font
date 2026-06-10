@@ -76,29 +76,35 @@ jobs:
           CXXFLAGS="-std=c++17 -O2 -Isrc -Isrc/doc_api -Isrc/filetypes -I/usr/include/libxml2 -I/usr/include/SDL -Wall -Wextra -Wno-error -w" \
           CFLAGS="-O2 -Wno-error -w"
 
-    - name: Binary finden, strippen und vorbereiten
+    - name: Binary finden, strippen und Bibliotheken sammeln
       run: |
-        # Wir suchen nach ausführbaren Dateien, die das Makefile ausgespuckt hat
-        # (Oft heißen sie 'reader' oder 'mreader')
+        # 1. Ausführbare Datei suchen
         FOUND_BIN=$(find . -maxdepth 3 -type f -executable ! -name "*.sh" ! -path "*/.*" | head -n 1)
         
         if [ -z "$FOUND_BIN" ]; then
-          echo "FEHLER: Es wurde keine ausführbare Datei vom Makefile gebaut!"
-          echo "Inhalt des Verzeichnisses:"
-          ls -R
+          echo "FEHLER: Es wurde keine ausführbare Datei gebaut!"
           exit 1
         fi
         
-        echo "Erfolgreich gebaute Datei gefunden: $FOUND_BIN"
+        # 2. Ordner für den finalen Export vorbereiten
+        mkdir -p dist/libs
         
-        # Datei schlank machen für den Handheld
+        # 3. Binary optimieren und kopieren
         aarch64-linux-gnu-strip "$FOUND_BIN"
+        cp "$FOUND_BIN" dist/reader
         
-        # Sicherstellen, dass sie im Hauptverzeichnis exakt 'reader' heißt, damit dein PortMaster-Skript sie findet
-        cp "$FOUND_BIN" ./reader
+        # 4. Die fehlenden ARM64 .so-Bibliotheken (inklusive libzip) aufspüren und einsammeln
+        # Wir suchen gezielt im aarch64-Systemordner nach libzip und libxml2
+        cp /usr/lib/aarch64-linux-gnu/libzip.so* dist/libs/ 2>/dev/null || true
+        cp /usr/lib/aarch64-linux-gnu/libxml2.so* dist/libs/ 2>/dev/null || true
+        
+        # Falls symbolische Links kopiert wurden, stellen wir sicher, dass echte Dateien mitkopiert werden
+        find dist/libs/ -type l -exec rm {} \;
+        cp -L /usr/lib/aarch64-linux-gnu/libzip.so.4 dist/libs/ 2>/dev/null || true
+        cp -L /usr/lib/aarch64-linux-gnu/libxml2.so.2 dist/libs/ 2>/dev/null || true
 
-    - name: Fertige App hochladen
+    - name: Fertige App und Libs hochladen
       uses: actions/upload-artifact@v4
       with:
-        name: mreader-arm64-binary
-        path: reader
+        name: mreader-portmaster-package
+        path: dist/
