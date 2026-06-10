@@ -32,6 +32,7 @@ jobs:
         sed -i '1i#include <cstdint>' src/filetypes/doc_api/doc_addr.h
         sed -i '1i#include <cstdint>' src/filetypes/epub/xhtml_string_util.cpp
         sed -i '1i#include <cstdint>' src/reader/text_wrap.cpp
+        sed -i '1i#include <cstdint>' src/util/string_serialization.cpp
         
         # 2. Wir ersetzen das veraltete experimental::filesystem durch das moderne filesystem
         find src/filetypes/doc_api/ -type f -exec sed -i 's/experimental::filesystem/filesystem/g' {} +
@@ -42,7 +43,6 @@ jobs:
         find src/filetypes/doc_api/ -type f -exec sed -i 's/<experimental\/optional>/<optional>/g' {} +
 
         # 4. Wir korrigieren den veralteten Rückgabetyp im Header des Entwicklers (int -> std::optional)
-        # Wir inkludieren <optional> im Header und passen die Deklaration an
         sed -i '1i#include <optional>\n#include <cstdint>' src/reader/settings_store.h
         sed -i 's/int settings_get_font_size/std::optional<uint32_t> settings_get_font_size/g' src/reader/settings_store.h
 
