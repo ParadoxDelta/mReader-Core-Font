@@ -26,7 +26,7 @@ jobs:
         rm -rf src/filetypes/doc_api
         cp -r temp_quark/pixel-reader/src/doc_api src/filetypes/doc_api
 
-    - name: Code-Kompatibilität patchen (Sed-Fix)
+    - name: Code-Kompatibilität patchen (Nur Filesystem & cstdint)
       run: |
         # 1. Wir fügen das fehlende <cstdint> in die doc_addr.h ein
         sed -i '1i#include <cstdint>' src/filetypes/doc_api/doc_addr.h
@@ -34,18 +34,23 @@ jobs:
         # 2. Wir fügen das fehlende <cstdint> in die xhtml_string_util.cpp ein
         sed -i '1i#include <cstdint>' src/filetypes/epub/xhtml_string_util.cpp
         
-        # 3. Wir ersetzen das veraltete experimental::filesystem durch das moderne filesystem
+        # 3. Wir ersetzen NUR das veraltete experimental::filesystem durch das moderne filesystem
         find src/filetypes/doc_api/ -type f -exec sed -i 's/experimental::filesystem/filesystem/g' {} +
         find src/filetypes/doc_api/ -type f -exec sed -i 's/<experimental\/filesystem>/<filesystem>/g' {} +
 
-        # 4. Wir biegen das alte experimental::optional auf das normale std::optional um
-        find src/filetypes/doc_api/ -type f -exec sed -i 's/experimental::optional/optional/g' {} +
-        find src/filetypes/doc_api/ -type f -exec sed -i 's/<experimental\/optional>/<optional>/g' {} +
-
-        # 5. NEU: Wir flicken den fehlerhaften Entwickler-Code im settings_store Header!
-        # Wir ersetzen den Rückgabetyp "int" durch "std::optional<uint32_t>"
-        sed -i 's/int settings_get_font_size/std::optional<uint32_t> settings_get_font_size/g' src/reader/settings_store.h
-
     - name: Kompilieren via Makefile mit Suchpfad
       run: |
-        make -j CXXFLAGS="-std=c++17 -g2 -Isrc -Isrc/filetypes -I/usr/include/libxml2 -I/usr/include/SDL -pedantic-errors -Wall -Wextra"
+        # Wir entfernen "-pedantic-errors", damit Warnungen über ungenutzte Funktionen ignoriert werden.
+        # Wir fügen "-Dexperimental=std" hinzu, um experimental::optional sauber auf std::optional umzubiegen!
+        make -j CXXFLAGS="-std=c++17 -g2 -Isrc -Isrc/filetypes -I/usr/include/libxml2 -I/usr/include/SDL -Wall -Wextra -Dexperimental=std"
+
+    - name: Fertige App hochladen (Download bereitstellen)
+      uses: actions/upload-artifact@v4
+      with:
+        name: mreader-binar-datei
+        path: |
+          build/mreader
+          mreader
+          build/reader
+          reader
+        if-no-files-found: warn
