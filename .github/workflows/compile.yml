@@ -1,0 +1,25 @@
+name: Handheld Build
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Code herunterladen
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Linux-Abhängigkeiten installieren
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential libxml2-dev
+
+    - name: Kompilieren via Makefile
+      run: |
+        make
