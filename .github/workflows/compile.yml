@@ -31,11 +31,14 @@ jobs:
         # 1. Wir fügen das fehlende <cstdint> in die doc_addr.h ein
         sed -i '1i#include <cstdint>' src/filetypes/doc_api/doc_addr.h
         
-        # 2. Wir ersetzen das veraltete experimental::filesystem durch das moderne filesystem
+        # 2. NEU: Wir fügen das fehlende <cstdint> in die xhtml_string_util.cpp ein
+        sed -i '1i#include <cstdint>' src/filetypes/epub/xhtml_string_util.cpp
+        
+        # 3. Wir ersetzen das veraltete experimental::filesystem durch das moderne filesystem
         find src/filetypes/doc_api/ -type f -exec sed -i 's/experimental::filesystem/filesystem/g' {} +
         find src/filetypes/doc_api/ -type f -exec sed -i 's/<experimental\/filesystem>/<filesystem>/g' {} +
 
-        # 3. Wir biegen das alte experimental::optional auf das normale std::optional um
+        # 4. Wir biegen das alte experimental::optional auf das normale std::optional um
         find src/filetypes/doc_api/ -type f -exec sed -i 's/experimental::optional/optional/g' {} +
         find src/filetypes/doc_api/ -type f -exec sed -i 's/<experimental\/optional>/<optional>/g' {} +
 
