@@ -26,7 +26,8 @@ jobs:
         rm -rf src/filetypes/doc_api
         cp -r temp_quark/pixel-reader/src/doc_api src/filetypes/doc_api
 
-    - name: Kompilieren via Makefile mit angepasstem Suchpfad
+    - name: Kompilieren mit API-Kompatibilitäts-Flags
       run: |
-        # Wir übergeben CXXFLAGS direkt an make, um -Isrc/filetypes hinzuzufügen
-        make CXXFLAGS="-std=c++17 -g2 -Isrc -Isrc/filetypes -I/usr/include/libxml2 -pedantic-errors -Wall -Wextra"
+        # -include cstdint fügt die fehlenden uint64_t Typen hinzu
+        # -D... weicht das veraltete experimental::filesystem auf das moderne std::filesystem auf
+        make CXXFLAGS="-std=c++17 -g2 -Isrc -Isrc/filetypes -I/usr/include/libxml2 -pedantic-errors -Wall -Wextra -include cstdint -Dexperimental= -D_GLIBCXX_EXPERIMENTAL_FILESYSTEM=1"
