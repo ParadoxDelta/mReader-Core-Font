@@ -1,4 +1,4 @@
-name: Handheld Build (ARM64 Cross-Compile)
+name: Handheld Build (ARM64 Cross-Compile - Safe Environment)
 
 on:
   push:
@@ -7,38 +7,34 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    # Wir wechseln auf Ubuntu 20.04 für maximale Abwärtskompatibilität ohne ICU-Zwang!
+    runs-on: ubuntu-20.04
 
     steps:
     - name: Code herunterladen
       uses: actions/checkout@v4
 
-    - name: ARM64 Paketquellen radikal bereinigen und Cross-Compiler installieren
+    - name: ARM64 Paketquellen einrichten und Cross-Compiler installieren
       run: |
-        # 1. ARM64 Architektur im System registrieren
         sudo dpkg --add-architecture arm64
-
-        # 2. Alle alten, störenden Paketquellen-Konfigurationen restlos löschen
+        
+        # Saubere Paketquellen für Ubuntu 20.04 (focal) schreiben
         sudo rm -f /etc/apt/sources.list
         sudo rm -rf /etc/apt/sources.list.d/*
-
-        # 3. Eine komplett saubere, neue sources.list schreiben
-        echo "deb [arch=amd64] http://azure.archive.ubuntu.com/ubuntu/ noble main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
-        echo "deb [arch=amd64] http://azure.archive.ubuntu.com/ubuntu/ noble-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
-        echo "deb [arch=amd64] http://azure.archive.ubuntu.com/ubuntu/ noble-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
         
-        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
-        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
-        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+        echo "deb [arch=amd64] http://azure.archive.ubuntu.com/ubuntu/ focal main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+        echo "deb [arch=amd64] http://azure.archive.ubuntu.com/ubuntu/ focal-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+        echo "deb [arch=amd64] http://azure.archive.ubuntu.com/ubuntu/ focal-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+        
+        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports focal main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports focal-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports focal-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
 
-        # 4. Update ausführen
         sudo apt-get update
         
-        # 5. Abhängigkeiten auf dem Server installieren
+        # Kompakte Abhängigkeiten installieren
         sudo apt-get install -y build-essential gcc-aarch64-linux-gnu g++-aarch64-linux-gnu git \
-          libglib2.0-dev-bin:amd64 libglib2.0-dev-bin-linux:amd64 \
+          libglib2.0-dev-bin:amd64 \
           libxml2-dev:arm64 libzip-dev:arm64 libsdl1.2-dev:arm64 libsdl-ttf2.0-dev:arm64 libsdl-image1.2-dev:arm64 \
           libssl-dev:arm64
 
@@ -60,6 +56,8 @@ jobs:
         sed -i '1i#include <cstdint>' src/util/str_utils.cpp
         sed -i '1i#include <cstdint>' src/reader/shoulder_keymap.cpp
         
+        # Auf Ubuntu 20.04 nutzen wir ganz normal <experimental/filesystem> falls nötig, 
+        # wir patchen es hier aber für modernen Standard GCC-9 kompatibel:
         find src/filetypes/doc_api/ src/doc_api/ -type f -exec sed -i 's/experimental::filesystem/filesystem/g' {} +
         find src/filetypes/doc_api/ src/doc_api/ -type f -exec sed -i 's/<experimental\/filesystem>/<filesystem>/g' {} +
         find src/filetypes/doc_api/ src/doc_api/ -type f -exec sed -i 's/experimental::optional/optional/g' {} +
@@ -73,38 +71,37 @@ jobs:
 
     - name: Kompilieren via Makefile für ARM64
       run: |
-        # Wir nutzen das originale Makefile und lassen den Standard-Linker arbeiten
         make -j CXX="aarch64-linux-gnu-g++" CC="aarch64-linux-gnu-gcc" \
           CXXFLAGS="-std=c++17 -O2 -Isrc -Isrc/doc_api -Isrc/filetypes -I/usr/include/libxml2 -I/usr/include/SDL -Wall -Wextra -Wno-error -w" \
-          CFLAGS="-O2 -Wno-error -w"
+          LDFLAGS="-lstdc++fs -lSDL -lSDL_ttf -lSDL_image -lzip -lxml2"
 
-    - name: Binary finden, strippen und exportieren
+    - name: Binary finden, strippen und Bibliotheken sammeln
       run: |
-        # 1. Ausführbare Datei suchen
+        mkdir -p dist/libs
+        
         FOUND_BIN=$(find build/ -type f -executable ! -name "*.sh" ! -path "*/.*" | head -n 1)
         if [ -z "$FOUND_BIN" ]; then
           FOUND_BIN=$(find . -maxdepth 3 -type f -executable ! -name "*.sh" ! -path "*/.*" | head -n 1)
         fi
         
-        if [ -z "$FOUND_BIN" ]; then
-          echo "FEHLER: Keine ausführbare Datei gefunden!"
-          exit 1
-        fi
-        
-        # 2. Ordner für den finalen Export vorbereiten
-        mkdir -p dist/libs
-        
-        # 3. Binary optimieren und kopieren
         aarch64-linux-gnu-strip "$FOUND_BIN"
         cp "$FOUND_BIN" dist/reader
+        
+        # Wir sammeln NUR die absolut notwendigen Apps aus der sauberen Ubuntu 20.04 Umgebung.
+        # Keine modernen Bildcodecs, kein ICU-Zwang!
+        cp -L /usr/lib/aarch64-linux-gnu/libzip.so.5 dist/libs/ 2>/dev/null || true
+        cp -L /usr/lib/aarch64-linux-gnu/libxml2.so.2 dist/libs/ 2>/dev/null || true
+        cp -L /usr/lib/aarch64-linux-gnu/libSDL-1.2.so.0 dist/libs/ 2>/dev/null || true
+        cp -L /usr/lib/aarch64-linux-gnu/libSDL_ttf-2.0.so.0 dist/libs/ 2>/dev/null || true
+        cp -L /usr/lib/aarch64-linux-gnu/libSDL_image-1.2.so.0 dist/libs/ 2>/dev/null || true
+        cp -L /usr/lib/aarch64-linux-gnu/libfreetype.so.6 dist/libs/ 2>/dev/null || true
+        cp -L /usr/lib/aarch64-linux-gnu/libpng16.so.16 dist/libs/ 2>/dev/null || true
+        cp -L /usr/lib/aarch64-linux-gnu/libjpeg.so.8 dist/libs/ 2>/dev/null || true
+        cp -L /usr/lib/aarch64-linux-gnu/libcrypto.so.1.1 dist/libs/ 2>/dev/null || true
+        cp -L /usr/lib/aarch64-linux-gnu/libssl.so.1.1 dist/libs/ 2>/dev/null || true
 
-        # 4. Wir kopieren ABSOLUT KEINE Bibliotheken mehr vom Server!
-        # Der Ordner dist/libs bleibt komplett leer, damit das Handheld-OS seine eigenen,
-        # nativen und perfekt abgestimmten Versionen nutzt.
-        touch dist/libs/.gitkeep
-
-        echo "Inhalt des Export-Ordners:"
-        ls -l dist/
+        echo "Folgende Bibliotheken wurden exportiert:"
+        ls -l dist/libs/
 
     - name: Fertige App hochladen
       uses: actions/upload-artifact@v4
