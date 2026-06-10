@@ -20,11 +20,17 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential libxml2-dev git
 
-    - name: Fehlende doc_api manuell klonen
+    - name: Echte doc_api aus Quark-Sources holen
       run: |
-        # Wir löschen den leeren Ordner und holen uns die echten Dateien direkt vom Entwickler
+        # Wir klonen das Quark-Repository in einen temporären Ordner
+        git clone https://github.com/cobaltgit/Quark-Sources.git temp_quark
+        
+        # Wir löschen den kaputten/leeren Ordner in deinem Projekt
         rm -rf src/filetypes/doc_api
-        git clone https://github.com/booYah187/doc_api.git src/filetypes/doc_api
+        rm -rf src/doc_api
+        
+        # Wir kopieren den echten, vollständigen doc_api-Ordner dorthin, wo dein Makefile ihn sucht
+        cp -r temp_quark/pixel-reader/src/doc_api src/filetypes/doc_api
 
     - name: Kompilieren via Makefile
       run: |
